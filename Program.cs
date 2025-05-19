@@ -1,13 +1,16 @@
-﻿char[,] userBoard = new char[10, 10]; // Users own board
+char[,] userBoard = new char[10, 10]; // Users own board
 char[,] computerBoard = new char[10, 10]; // Computers own board
 char[,] userGuessBoard = new char[10, 10]; // Where the user attacks
 char[,] computerGuessBoard = new char[10, 10]; // Where the computer attacks
 
-int userShips = 8; // How many ships user has
-int computerShips = 8; // How many ships computer has
+List<int> shipSizes = new List<int> { 5, 4, 3, 3, 2 }; // Different ship lengths
+int userShips = 0;
+int computerShips = 0;
+int theDelay = 2000;
+
 
 ShowIntro(); // Shows instructions to user
-await Task.Delay(5000); // Pauses code for 5 seconds
+await Task.Delay(theDelay*2); // Pauses code for 5 seconds
 
 SetupBoards(); // Fills all boards with hidden positions
 PlaceUserShips(); // Let's user place his ships
@@ -26,11 +29,11 @@ while (userShips > 0 && computerShips > 0) // Main game loop
 
     UserTurn();
     if (computerShips == 0) break; // End loop when computer has no ships left
-    await Task.Delay(2000); // Pauses code for 2 seconds
+    await Task.Delay(theDelay); // Pauses code for 2 seconds
 
     ComputerTurn();
     if (userShips == 0) break; // End loop when user had no ships left
-    await Task.Delay(2000); // Pauses code for 2 seconds
+    await Task.Delay(theDelay); // Pauses code for 2 seconds
 
 }
 
@@ -42,9 +45,10 @@ void ShowIntro() // User instructions
     Console.ForegroundColor = ConsoleColor.DarkRed;
     Console.WriteLine("=== Sink the Ship ===");
     Console.ResetColor();
-    Console.WriteLine("You and the computer each have 8 ships.");
+    Console.WriteLine("You and the computer each have 5 ships.");
     Console.WriteLine("Take turns attacking. First to sink all enemy ships wins.");
-    Console.WriteLine("Use numbers 0–9 to pick coordinates.\n");
+    Console.WriteLine("Use numbers 0–9 to pick coordinates.");
+    Console.WriteLine("Your ship size will start at 5 charachters long and go down in increments of 1.\n");
 }
 
 void SetupBoards() // Prints the boards
@@ -53,10 +57,10 @@ void SetupBoards() // Prints the boards
     {
         for (int col = 0; col < 10; col++) // Loops through cols
         {
-            userBoard[row, col] = '~'; // Sets up board using '~'
-            computerBoard[row, col] = '~'; // Sets up board using '~'
-            userGuessBoard[row, col] = '~'; // Sets up board using '~'
-            computerGuessBoard[row, col] = '~'; // Sets up board using '~'
+            userBoard[row, col] = ' '; // Sets up board using '~'
+            computerBoard[row, col] = ' '; // Sets up board using '~'
+            userGuessBoard[row, col] = ' '; // Sets up board using '~'
+            computerGuessBoard[row, col] = ' '; // Sets up board using '~'
         }
     }
 }
@@ -64,7 +68,7 @@ void SetupBoards() // Prints the boards
 void ShowBoard(char[,] board, bool showShips) // Shows updated board
 {
     Console.Write("  ");
-    for (int i = 0; i < 10; i++) Console.Write(i + " "); // Prints column numbers
+    for (int i = 0; i < board.GetLength(1); i++) Console.Write(i + " "); // Prints column numbers
     Console.WriteLine();
 
     for (int row = 0; row < 10; row++) // Loops through each row
@@ -73,54 +77,104 @@ void ShowBoard(char[,] board, bool showShips) // Shows updated board
         for (int col = 0; col < 10; col++) // Loops through each col in that row
         {
             char value = board[row, col]; // Gets current value from the board
-            if (!showShips && value == 'S') value = '~'; // Hides ship if showShips == false
+            if (!showShips && value == 'S') value = ' '; // Hides ship if showShips == false
+            Console.BackgroundColor = ConsoleColor.Blue;
             Console.Write(value + " "); // Print the value 
+            Console.ResetColor();
         }
         Console.WriteLine();
     }
 }
 
-void PlaceUserShips() // Places users ships
+void PlaceUserShips()
 {
-    int placed = 0;
-
-    while (placed < 8) // Loop that lasts until all ships are placed
+    for (int i = 0; i < shipSizes.Count; i++)
     {
-        Console.Clear();
-        Console.WriteLine($"Place your ship #{placed+1}"); // Moves to next ship to place after placing previous ship
-        ShowBoard(userBoard, true); // Shows updated board with ships placed
+        int size = shipSizes[i];
+        bool placed = false;
 
-        int row = AskForNumber("Row (0-9): ");
-        int col = AskForNumber("Column (0-9): ");
+        while (!placed)
+        {
+            Console.Clear();
+            Console.WriteLine($"Place your ship #{i + 1} (size {size})");
+            ShowBoard(userBoard, true);
 
-        if (userBoard[row, col] == '~') // If position is not already chosen
-        {
-            userBoard[row, col] = 'S'; // Place ship
-            placed++; // Moves to next ship to place
-        }
-        else // if position is already chosen
-        {
-            Console.WriteLine("Already placed. Press any key to try again."); // Ask user to replace
-            Console.ReadKey();
+            int row = AskForNumber("Start Row (0–9): ");
+            int col = AskForNumber("Start Column (0–9): ");
+
+            Console.Write("Direction (H for horizontal, V for vertical): "); // User chooses direction to place ship
+            string direction = Console.ReadLine().ToUpper();
+            bool horizontal = direction == "H";
+
+            if (CanPlaceShip(userBoard, row, col, size, horizontal)) // "CanPlaceShip" is a method that checks so the ship doesnt overlap with another ship or is out of bounds.
+            {
+                PlaceShip(userBoard, row, col, size, horizontal); // Place ship
+                userShips += size; // Increase number of userships
+                placed = true;
+            }
+            else
+            {
+                Console.WriteLine("Invalid or overlapping. Press any key to try again.");
+                Console.ReadKey();
+            }
         }
     }
 }
 
-void PlaceComputerShips() // Places computer ships randomly
+void PlaceComputerShips()
 {
     Random rnd = new Random();
-    int placed = 0; // Number of placed ships
 
-    while (placed < 8) // Loops until all ships are placed (8 ships)
+    for (int i = 0; i < shipSizes.Count; i++)
     {
-        int row = rnd.Next(0, 10); // Chooses random row for computer ship
-        int col = rnd.Next(0, 10); // Chooses random col for computer ship
+        int size = shipSizes[i];
+        bool placed = false;
 
-        if (computerBoard[row, col] == '~') // If position is not already chosen
+        while (!placed)
         {
-            computerBoard[row, col] = 'S'; // Place ship
-            placed++; // Move to next ship to place
+            int row = rnd.Next(0, 10);
+            int col = rnd.Next(0, 10);
+            bool horizontal = rnd.Next(2) == 0;
+
+            if (CanPlaceShip(computerBoard, row, col, size, horizontal)) // Checks that ship is not out of bounds or overlapping with another ship
+            {
+                PlaceShip(computerBoard, row, col, size, horizontal); // Place ship
+                computerShips += size; // Increases number of computerShips
+                placed = true;
+            }
         }
+    }
+}
+
+bool CanPlaceShip(char[,] board, int row, int col, int size, bool horizontal) // Returns true if ship can be placed, else false
+{
+    if (horizontal)
+    {
+        if (col + size > 10) return false; // If column size is bigger than available columns, return false
+        for (int i = 0; i < size; i++)
+        {
+            if (board[row, col + i] != ' ') return false; // if character space isn't available, return false
+        }
+    }
+    else
+    {
+        if (row + size > 10) return false; // if row size is bigger than available rows, return false
+        for (int i = 0; i < size; i++)
+        {
+            if (board[row + i, col] != ' ') return false; // if charachter space isn't available, return false
+        }
+    }
+    return true;
+}
+
+void PlaceShip(char[,] board, int row, int col, int size, bool horizontal) // Places ship
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (horizontal)
+            board[row, col + i] = 'S';
+        else
+            board[row + i, col] = 'S';
     }
 }
 
@@ -156,7 +210,7 @@ void UserTurn() // Users turn in game
 void ComputerTurn() // Computer's turn
 {
     Console.WriteLine("\nComputer is thinking...");
-    Thread.Sleep(2000);
+    Thread.Sleep(theDelay);
     Random rnd = new Random(); 
     int row, col;
 
@@ -177,7 +231,7 @@ void ComputerTurn() // Computer's turn
     else // If attacked position is not an user's ship
     {
         Console.WriteLine($"Computer missed at ({row}, {col})."); // Write coordinates of the missed positon
-        Thread.Sleep(1000);
+        Thread.Sleep(theDelay/2);
         computerGuessBoard[row, col] = 'O'; // Update computer's attack board
         if (userBoard[row, col] == '~') // if user's board position is not updated
             userBoard[row, col] = 'O'; // Marks a miss on the user's board
@@ -201,6 +255,7 @@ void ShowWinner() // When game ends
     Console.WriteLine("=== GAME OVER ===");
 
     if (userShips == 0) // If user has no ships left
+
         Console.WriteLine("You lost! All your ships were sunk. You suck!");
     else // If computer has no ships left
         Console.WriteLine("You won! You destroyed the computer's fleet. Lucky bastard!");
